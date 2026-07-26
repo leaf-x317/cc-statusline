@@ -72,7 +72,7 @@ IFS=$'\t' read -r model effort thinking used_percent context_window_size context
         (.context_window.total_output_tokens // 0),
         (.cost.total_duration_ms // 0),
         (.workspace.current_dir // .cwd // "")
-    ] | @tsv'
+    ] | @tsv' | tr -d '\r'
 )
 IFS="$OLDIFS"
 # Restore placeholder for empty effort (Bash read swallows empty TSV fields)
