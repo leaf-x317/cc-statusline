@@ -1,0 +1,27 @@
+{
+  "name": "cc-statusline",
+  "version": "1.0.0",
+  "description": "Custom status line for Claude Code: model, context usage, session duration, CPU, git branch & changes",
+  "main": "./bin/install.js",
+  "files": [
+    "bin/",
+    "assets/"
+  ],
+  "bin": {
+    "cc-statusline": "bin/install.js"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "statusline",
+    "cli"
+  ],
+  "author": "zlemon0317",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zlemon0317/cc-statusline.git"
+  },
+  "homepage": "https://github.com/zlemon0317/cc-statusline#readme",
+  "bugs": "https://github.com/zlemon0317/cc-statusline/issues"
+}
