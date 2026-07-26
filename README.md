@@ -4,17 +4,7 @@ A custom status line for Claude Code — shows model name, context usage, sessio
 
 [中文说明](#中文说明)
 
-classic theme:
-
-![classic theme](assets/theme-classic.png)
-
-matrix theme:
-
-![matrix theme](assets/theme-matrix.png)
-
-ocean theme:
-
-![ocean theme](assets/theme-ocean.png)
+<!-- Screenshots: classic / matrix / ocean themes (coming soon) -->
 
 ## Features
 
