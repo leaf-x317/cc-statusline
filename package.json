@@ -16,12 +16,12 @@
     "statusline",
     "cli"
   ],
-  "author": "zlemon0317",
+  "author": "zlemon317",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zlemon0317/cc-statusline.git"
+    "url": "git+https://github.com/zlemon317/cc-statusline.git"
   },
-  "homepage": "https://github.com/zlemon0317/cc-statusline#readme",
-  "bugs": "https://github.com/zlemon0317/cc-statusline/issues"
+  "homepage": "https://github.com/zlemon317/cc-statusline#readme",
+  "bugs": "https://github.com/zlemon317/cc-statusline/issues"
 }
