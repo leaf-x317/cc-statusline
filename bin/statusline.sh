@@ -6,7 +6,7 @@
 # 主题选择 - 修改这里来切换配色方案
 # 可用主题: classic, matrix, ocean
 # ==========================================
-THEME="classic"  # &lt;-- 修改这里切换主题
+THEME="${CC_STATUSLINE_THEME:-classic}"  # &lt;-- 修改这里切换主题，或设置 CC_STATUSLINE_THEME 环境变量
 
 # ==========================================
 # 颜色主题定义
@@ -90,6 +90,9 @@ get_cpu_usage() {
     local tmp_file cpu_user cpu_nice cpu_system cpu_idle cpu_iowait cpu_irq cpu_softirq cpu_steal
     local cpu_total cpu_used cpu_usage prev_used prev_total cpu_used_diff cpu_total_diff
 
+    # /proc/stat is Linux-only; bail out on macOS so the caller can hide the segment
+    [ -r /proc/stat ] || return 1
+
     tmp_file="/tmp/claude-statusline-cpu.${USER:-default}.tmp"
 
     read -r _ cpu_user cpu_nice cpu_system cpu_idle cpu_iowait cpu_irq cpu_softirq cpu_steal _ < /proc/stat
@@ -111,7 +114,8 @@ get_cpu_usage() {
 
 
 # Map model name to its context window size (in tokens)
-# Falls back to 200k for unknown models
+# Returns 0 for unknown models so the caller can fall back to the
+# JSON-provided value, then to a 200k default
 # Priority: model name map > JSON-provided value > 200k default
 get_model_context_window() {
     local model_lower
@@ -119,6 +123,7 @@ get_model_context_window() {
 
     case "$model_lower" in
         # Qwen series
+        *qwen3.8-max-preview*)      printf "1048576" ;; # 1M
         *qwen3.7-max*)              printf "1048576" ;; # 1M
         *qwen3.7-plus*)             printf "1048576" ;; # 1M
         *qwen3.6-plus*)             printf "1048576" ;; # 1M
@@ -126,20 +131,44 @@ get_model_context_window() {
         # DeepSeek series
         *deepseek-v4-pro*)          printf "1048576" ;; # 1M
         *deepseek-v4-flash*)        printf "1048576" ;; # 1M
+        *deepseek-v3.2*)            printf "131072" ;; # 128k
         # GLM series
         *glm-5.2*)                  printf "1048576" ;; # 1M
         *glm-5.1*)                  printf "204800"  ;; # 200k
         *glm-5*)                    printf "204800"  ;; # 200k
         # Kimi series
+        *k3-256k*)                  printf "262144" ;; # 256k
+        *k3*)                       printf "1048576" ;; # 1M
         *kimi-k3*)                  printf "1048576" ;; # 1M
         *k3[[]1m[]]*)               printf "1048576" ;; # 1M (k3[1m] variant)
         *kimi-k2.7-code-highspeed*) printf "262144" ;;  # 256k
         *kimi-k2.7-code*)           printf "262144" ;;  # 256k
         *kimi-k2.6*)                printf "262144" ;;  # 256k
+        *kimi-k2.5*)                printf "262144" ;;  # 256k
         *kimi-for-coding-highspeed*) printf "262144" ;; # 256k
         *kimi-for-coding*)          printf "262144" ;;  # 256k
         *kimi*)                     printf "131072" ;;  # 128k (legacy fallback)
-        *)                          printf "200000" ;;  # default 200k
+        # MiniMax series
+        *minimax-m3*)               printf "1048576" ;; # 1M
+        *minimax*)                  printf "204800"  ;; # 204.8k (M2 / M2.5 / M2.7)
+        # OpenAI series
+        *gpt-5.5*)                  printf "1048576" ;; # 1M
+        *gpt-5*)                    printf "400000"  ;; # 400k (5 Pro / 5.1 / 5.3 / 5.4 Codex)
+        *gpt-4.1*)                  printf "1048576" ;; # 1M
+        *gpt-4*)                    printf "131072"  ;; # 128k (4o / 4-turbo)
+        # Google series
+        *gemini*)                   printf "1048576" ;; # 1M (Gemini 3 / 3.1 family)
+        # xAI series
+        *grok-4.1-fast*)            printf "2000000" ;; # 2M
+        *grok-4.20*)                printf "2000000" ;; # 2M
+        *grok-4.5*)                 printf "500000"  ;; # 500k
+        *grok*)                     printf "256000"  ;; # 256k (Grok 4)
+        # Claude: intentionally no entry — native Claude Code provides an accurate
+        # context_window_size in JSON (200k standard / 1M beta); the 200k fallback
+        # below covers gateway usage without a JSON value.
+        # No match: return 0 so the caller falls back to the JSON-provided value,
+        # then to the 200k default
+        *)                          printf "0" ;;
     esac
 }
 
@@ -166,20 +195,25 @@ elif [ "$context_pct" -gt 100 ] 2>/dev/null; then
 fi
 
 # Format number
+# Binary units when the value is an exact multiple of 1024 (131072→128k,
+# 204800→200k, 262144→256k, 1048576→1M); decimal otherwise (400000→400k,
+# 500000→500k, 2000000→2M)
 format_number() {
     local num=$1
     if ! [[ "$num" =~ ^[0-9]+$ ]]; then num=0; fi
-    if [ "$num" -ge 1000000 ]; then
-        local millions=$((num / 1000000))
-        local fraction=$(((num % 1000000) / 100000))
+    local base=1000
+    if [ "$num" -gt 0 ] && [ $((num % 1024)) -eq 0 ]; then base=1024; fi
+    if [ "$num" -ge $((base * base)) ]; then
+        local millions=$((num / (base * base) ))
+        local fraction=$(((num % (base * base)) / (base * base / 10) ))
         if [ "$fraction" -eq 0 ]; then
             printf "%dM" "$millions"
         else
             printf "%d.%dM" "$millions" "$fraction"
         fi
-    elif [ "$num" -ge 1000 ]; then
-        local thousands=$((num / 1000))
-        local fraction=$(((num % 1000) / 100))
+    elif [ "$num" -ge "$base" ]; then
+        local thousands=$((num / base))
+        local fraction=$(((num % base) / (base / 10) ))
         if [ "$fraction" -eq 0 ]; then
             printf "%dk" "$thousands"
         else
@@ -267,7 +301,7 @@ fi
 
 
 # First line: model (effort, thinking) | ◼ workdir | ⌥ branch
-printf "\033[%sm✦ %s\033[0m" "$COLOR_MODEL" "$model"
+printf "\033[%sm✦\033[0m \033[%sm%s\033[0m" "$COLOR_GRAY" "$COLOR_MODEL" "$model"
 
 # Build effort/thinking part in parentheses
 effort_thinking=""
@@ -314,10 +348,11 @@ fi
 printf " \033[%sm|\033[0m \033[%sm◷\033[0m Duration: \033[%sm%s\033[0m" \
     "$COLOR_GRAY" "$COLOR_GRAY" "$COLOR_DURATION" "$(format_duration "$session_duration")"
 
-# CPU utilization
-cpu_pct=$(get_cpu_usage)
-printf " \033[%sm|\033[0m \033[%sm⚡\033[0mCPU: \033[%sm%d%%\033[0m" \
-    "$COLOR_GRAY" "$COLOR_GRAY" "$COLOR_CPU" "$cpu_pct"
+# CPU utilization (hidden on platforms without /proc/stat, e.g. macOS)
+if cpu_pct=$(get_cpu_usage); then
+    printf " \033[%sm|\033[0m \033[%sm▣\033[0m CPU: \033[%sm%d%%\033[0m" \
+        "$COLOR_GRAY" "$COLOR_GRAY" "$COLOR_CPU" "$cpu_pct"
+fi
 
 if [ "$git_added" -gt 0 ] || [ "$git_removed" -gt 0 ]; then
     printf " \033[%sm|\033[0m \033[%smΔ\033[0m Changes:" "$COLOR_GRAY" "$COLOR_GRAY"

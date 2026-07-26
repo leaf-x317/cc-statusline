@@ -11,7 +11,7 @@ A custom status line for Claude Code — shows model name, context usage, sessio
 - Current model name
 - Model effort level and thinking mode status
 - Context usage percentage with progress bar
-- Automatic context-window mapping by model name (128k / 200k / 256k / 1M)
+- Automatic context-window mapping by model name (128k–2M; Qwen / DeepSeek / GLM / Kimi / MiniMax / GPT / Gemini / Grok; Claude uses the JSON-provided value)
 - Session duration
 - CPU utilization
 - Current working directory and repository name
@@ -49,8 +49,9 @@ Restores your previous status line from backup (or removes it) and cleans up `se
 
 ## Dependencies
 
-- `jq` — JSON processing (`apt install jq` / `yum install jq` / `brew install jq`)
+- `jq` — JSON processing (`apt install jq` / `yum install jq` / `brew install jq` / `winget install jqlang.jq`)
 - `git` — branch and diff stats
+- `bash` — required on Windows (ships with [Git for Windows](https://git-scm.com/download/win)); preinstalled on macOS/Linux
 
 ## Themes
 
@@ -62,11 +63,19 @@ THEME="matrix"   # matrix theme (green)
 THEME="ocean"    # ocean theme (cyan)
 ```
 
+Or set the `CC_STATUSLINE_THEME` environment variable — it survives reinstalls. Add it to the `env` section of `~/.claude/settings.json`:
+
+```json
+"env": {
+  "CC_STATUSLINE_THEME": "matrix"
+}
+```
+
 ## Sample output
 
 ```
 ✦ kimi-k3 (high, thinking) | ◼ /workspace | ⎔ cc-statusline | ⌥ main
-◔ Context: ████████░░ 82% (165k/1M) | ◷ Duration: 5m32s | ⚡CPU: 23% | Δ +128 -45
+◔ Context: ████████░░ 82% (165k/1M) | ◷ Duration: 5m32s | ▣ CPU: 23% | Δ +128 -45
 ```
 
 ## Model context window mapping
@@ -75,17 +84,29 @@ The status line automatically matches the context window size by model name — 
 
 | Model family | Context window |
 |---------|-----------|
-| qwen3.7-max / qwen3.7-plus / qwen3.6-plus / qwen3.6-flash | 1M |
+| qwen3.8-max-preview / qwen3.7-max / qwen3.7-plus / qwen3.6-plus / qwen3.6-flash | 1M |
 | deepseek-v4-pro / deepseek-v4-flash | 1M |
+| deepseek-v3.2 | 128k |
 | glm-5.2 | 1M |
 | glm-5.1 / glm-5 | 200k |
-| kimi-k3 / k3[1m] | 1M |
-| kimi-k2.7-code / kimi-k2.7-code-highspeed / kimi-k2.6 | 256k |
-| kimi-for-coding / kimi-for-coding-highspeed | 256k |
+| kimi-k3 / k3 / k3[1m] | 1M |
+| k3-256k | 256k |
+| kimi-k2.7-code / kimi-k2.6 / kimi-k2.5 / kimi-for-coding (+ -highspeed variants) | 256k |
 | kimi (legacy) | 128k |
-| Unknown models | 200k (default) |
+| minimax-m3 | 1M |
+| minimax-m2 / m2.5 / m2.7 | 204.8k |
+| gpt-5.5 | 1M |
+| gpt-5 pro / 5.1 / 5.3 / 5.4 (codex) | 400k |
+| gpt-4.1 | 1M |
+| gpt-4o / gpt-4-turbo | 128k |
+| gemini 3 / 3.1 (pro / flash) | 1M |
+| grok-4.1-fast / grok-4.20 | 2M |
+| grok-4.5 | 500k |
+| grok-4 | 256k |
+| claude (any) | JSON-provided value (200k standard / 1M beta) |
+| Unknown models | JSON-provided value, else 200k (default) |
 
-The mapping lives in the `get_model_context_window()` function in `bin/statusline.sh`. Model matching is case-insensitive. If your gateway uses different model names, just add a line to that function.
+The mapping lives in the `get_model_context_window()` function in `bin/statusline.sh`. Model matching is case-insensitive. Priority: **name mapping > JSON-provided `context_window_size` > 200k default**. If your gateway uses different model names, just add a line to that function.
 
 ## Releasing
 
@@ -122,8 +143,9 @@ npx cc-statusline@latest --uninstall
 
 ### 依赖
 
-- `jq` - JSON 处理工具
+- `jq` - JSON 处理工具（`apt install jq` / `yum install jq` / `brew install jq` / `winget install jqlang.jq`）
 - `git` - 版本控制工具
+- `bash` - 仅 Windows 需要（随 [Git for Windows](https://git-scm.com/download/win) 提供）；macOS/Linux 已预装
 
 ### 主题配置
 
@@ -135,9 +157,24 @@ THEME="matrix"   # 矩阵主题（绿色系）
 THEME="ocean"    # 海洋主题（青色系）
 ```
 
+也可以设置 `CC_STATUSLINE_THEME` 环境变量——重装不会丢失。在 `~/.claude/settings.json` 的 `env` 中添加：
+
+```json
+"env": {
+  "CC_STATUSLINE_THEME": "matrix"
+}
+```
+
+### 示例输出
+
+```
+✦ kimi-k3 (high, thinking) | ◼ /workspace | ⎔ cc-statusline | ⌥ main
+◔ Context: ████████░░ 82% (165k/1M) | ◷ Duration: 5m32s | ▣ CPU: 23% | Δ +128 -45
+```
+
 ### 模型上下文窗口映射
 
-状态行会按模型名称自动匹配上下文窗口大小（支持 128k / 200k / 256k / 1M），映射规则位于 `bin/statusline.sh` 的 `get_model_context_window()` 函数中，模型匹配不区分大小写。如果你的网关使用不同的模型名，直接在该函数里加一行即可。
+状态行会按模型名称自动匹配上下文窗口大小（覆盖 128k / 200k / 256k / 400k / 500k / 1M / 2M，含 Qwen、DeepSeek、GLM、Kimi、MiniMax、GPT、Gemini、Grok 系列；Claude 直接使用 JSON 提供的准确值），映射规则位于 `bin/statusline.sh` 的 `get_model_context_window()` 函数中，模型匹配不区分大小写。优先级：**名称映射 > JSON 提供的 `context_window_size` > 200k 默认值**。如果你的网关使用不同的模型名，直接在该函数里加一行即可。
 
 ### 许可证
 

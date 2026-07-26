@@ -32,21 +32,24 @@ function fail(msg) {
   console.error(`  ${red}✗${reset} ${msg}`);
 }
 
-function checkDeps() {
+function has(cmd) {
   const { execSync } = require('child_process');
+  const lookup = process.platform === 'win32' ? 'where' : 'which';
+  try {
+    execSync(`${lookup} ${cmd}`, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function checkDeps() {
   const missing = [];
 
-  try {
-    execSync('which jq', { stdio: 'ignore' });
-  } catch {
-    missing.push('jq');
-  }
-
-  try {
-    execSync('which git', { stdio: 'ignore' });
-  } catch {
-    missing.push('git');
-  }
+  if (!has('jq')) missing.push('jq');
+  if (!has('git')) missing.push('git');
+  // The status line runs via `bash "..."` — must be on PATH for Windows users
+  if (process.platform === 'win32' && !has('bash')) missing.push('bash');
 
   return missing;
 }
@@ -112,11 +115,14 @@ function run() {
     fail(`缺少必要的依赖: ${missing.join(', ')}`);
     log(`  请安装后重试。`);
     if (missing.includes('jq')) {
-      log(`  ${dim}apt install jq${reset} 或 ${dim}yum install jq${reset}`);
+      log(`  ${dim}apt install jq${reset} / ${dim}yum install jq${reset} / ${dim}brew install jq${reset} / ${dim}winget install jqlang.jq${reset}`);
+    }
+    if (missing.includes('bash')) {
+      log(`  请安装 Git for Windows: ${dim}https://git-scm.com/download/win${reset}`);
     }
     throw new Error('Missing dependencies');
   }
-  success('依赖检查通过 (jq, git)');
+  success(`依赖检查通过 (${['jq', 'git', ...(process.platform === 'win32' ? ['bash'] : [])].join(', ')})`);
 
   if (!fs.existsSync(CLAUDE_DIR)) {
     fs.mkdirSync(CLAUDE_DIR, { recursive: true });
