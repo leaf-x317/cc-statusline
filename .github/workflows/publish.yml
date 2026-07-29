@@ -5,9 +5,15 @@ on:
     tags:
       - 'v*.*.*'
 
+permissions:
+  contents: read
+
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC token for npm Trusted Publishing
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -16,12 +22,16 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
+      # Trusted Publishing requires npm CLI >= 11.5.1 (node 22 ships npm 10.x)
+      - name: Update npm
+        run: npm install -g npm@latest
+
       # Sync package.json version from the tag (v1.1.0 -> 1.1.0), no git tag created
       # --allow-same-version: tag may equal the current package.json version
       - name: Update version
         run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
 
+      # No NODE_AUTH_TOKEN: auth happens via OIDC Trusted Publishing,
+      # which also generates provenance attestations automatically
       - name: Publish to npm
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance

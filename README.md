@@ -1,5 +1,9 @@
 # cc-statusline
 
+[![npm version](https://img.shields.io/npm/v/@zlemon317/cc-statusline)](https://www.npmjs.com/package/@zlemon317/cc-statusline)
+[![npm downloads](https://img.shields.io/npm/dm/@zlemon317/cc-statusline)](https://www.npmjs.com/package/@zlemon317/cc-statusline)
+[![license](https://img.shields.io/npm/l/@zlemon317/cc-statusline)](LICENSE)
+
 A custom status line for Claude Code — shows model name, context usage, session duration, CPU utilization, repo name, git branch, and code change stats at a glance.
 
 [中文说明](#中文说明)
