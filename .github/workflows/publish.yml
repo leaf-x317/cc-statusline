@@ -17,8 +17,9 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # Sync package.json version from the tag (v1.1.0 -> 1.1.0), no git tag created
+      # --allow-same-version: tag may equal the current package.json version
       - name: Update version
-        run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version
+        run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
 
       - name: Publish to npm
         run: npm publish --access public
