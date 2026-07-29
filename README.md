@@ -4,7 +4,17 @@ A custom status line for Claude Code — shows model name, context usage, sessio
 
 [中文说明](#中文说明)
 
-<!-- Screenshots: classic / matrix / ocean themes (coming soon) -->
+classic theme:
+
+![classic theme](assets/theme-classic.png)
+
+matrix theme:
+
+![matrix theme](assets/theme-matrix.png)
+
+ocean theme:
+
+![ocean theme](assets/theme-ocean.png)
 
 ## Features
 
@@ -13,7 +23,7 @@ A custom status line for Claude Code — shows model name, context usage, sessio
 - Context usage percentage with progress bar
 - Automatic context-window mapping by model name (128k–2M; Qwen / DeepSeek / GLM / Kimi / MiniMax / GPT / Gemini / Grok; Claude uses the JSON-provided value)
 - Session duration
-- CPU utilization
+- CPU utilization (Linux/Windows; hidden on macOS, which lacks `/proc/stat`)
 - Current working directory and repository name
 - Git branch
 - Code change stats (added / removed lines)
@@ -84,7 +94,7 @@ The status line automatically matches the context window size by model name — 
 
 | Model family | Context window |
 |---------|-----------|
-| qwen3.8-max-preview / qwen3.7-max / qwen3.7-plus / qwen3.6-plus / qwen3.6-flash | 1M |
+| qwen3.8-max-preview / qwen3.7-max / qwen3.7-plus / qwen3.7-flash / qwen3.6-plus / qwen3.6-flash | 1M |
 | deepseek-v4-pro / deepseek-v4-flash | 1M |
 | deepseek-v3.2 | 128k |
 | glm-5.2 | 1M |
@@ -95,6 +105,7 @@ The status line automatically matches the context window size by model name — 
 | kimi (legacy) | 128k |
 | minimax-m3 | 1M |
 | minimax-m2 / m2.5 / m2.7 | 204.8k |
+| gpt-5.6 (sol / terra / luna) | 1.05M |
 | gpt-5.5 | 1M |
 | gpt-5 pro / 5.1 / 5.3 / 5.4 (codex) | 400k |
 | gpt-4.1 | 1M |
@@ -102,6 +113,7 @@ The status line automatically matches the context window size by model name — 
 | gemini 3 / 3.1 (pro / flash) | 1M |
 | grok-4.1-fast / grok-4.20 | 2M |
 | grok-4.5 | 500k |
+| grok-4.3 | 1M |
 | grok-4 | 256k |
 | claude (any) | JSON-provided value (200k standard / 1M beta) |
 | Unknown models | JSON-provided value, else 200k (default) |

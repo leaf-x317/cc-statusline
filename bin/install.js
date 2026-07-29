@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { execSync } = require('child_process');
 
 const CLAUDE_DIR = path.join(os.homedir(), '.claude');
 const SETTINGS_FILE = path.join(CLAUDE_DIR, 'settings.json');
@@ -33,12 +34,20 @@ function fail(msg) {
 }
 
 function has(cmd) {
-  const { execSync } = require('child_process');
-  const lookup = process.platform === 'win32' ? 'where' : 'which';
+  // Guard against shell metacharacters should cmd ever become user-influenced
+  if (!/^[a-z0-9._-]+$/i.test(cmd)) {
+    throw new Error(`invalid command name: ${cmd}`);
+  }
+  // command -v is a POSIX shell builtin (no external `which` binary needed);
+  // Windows keeps `where`
+  const lookup = process.platform === 'win32' ? `where ${cmd}` : `command -v ${cmd}`;
   try {
-    execSync(`${lookup} ${cmd}`, { stdio: 'ignore' });
+    execSync(lookup, { stdio: 'ignore' });
     return true;
-  } catch {
+  } catch (err) {
+    // exit code 1 = not found; anything else (signals, spawn failures, OOM)
+    // is a system error and should surface, not masquerade as "missing"
+    if (err.status !== 1 && err.status !== undefined) throw err;
     return false;
   }
 }

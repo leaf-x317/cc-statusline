@@ -6,7 +6,7 @@
 # 主题选择 - 修改这里来切换配色方案
 # 可用主题: classic, matrix, ocean
 # ==========================================
-THEME="${CC_STATUSLINE_THEME:-classic}"  # &lt;-- 修改这里切换主题，或设置 CC_STATUSLINE_THEME 环境变量
+THEME="${CC_STATUSLINE_THEME:-classic}"  # <-- 修改这里切换主题，或设置 CC_STATUSLINE_THEME 环境变量
 
 # ==========================================
 # 颜色主题定义
@@ -62,7 +62,7 @@ input=$(cat)
 # Extract all fields in one jq call
 OLDIFS="$IFS"
 IFS=$'\t' read -r model effort thinking used_percent context_window_size context_total_input context_total_output session_duration cwd < <(
-    echo "$input" | jq -r '[
+    printf '%s' "$input" | jq -r '[
         (.model.display_name // .model.id // "model"),
         (.effort.level // "-"),
         (.thinking.enabled // false),
@@ -87,25 +87,34 @@ context_pct=0
 # CPU utilization measurement using /proc/stat with temp file caching
 # Uses deltas between successive calls to compute near-instantaneous CPU usage
 get_cpu_usage() {
-    local tmp_file cpu_user cpu_nice cpu_system cpu_idle cpu_iowait cpu_irq cpu_softirq cpu_steal
+    local tmp_dir tmp_file cpu_user cpu_nice cpu_system cpu_idle cpu_iowait cpu_irq cpu_softirq cpu_steal
     local cpu_total cpu_used cpu_usage prev_used prev_total cpu_used_diff cpu_total_diff
 
     # /proc/stat is Linux-only; bail out on macOS so the caller can hide the segment
     [ -r /proc/stat ] || return 1
 
-    tmp_file="/tmp/claude-statusline-cpu.${USER:-default}.tmp"
+    # Private per-user cache dir (mode 700, ownership-checked) — a predictable
+    # file directly under /tmp would be open to symlink pre-creation attacks
+    tmp_dir="${TMPDIR:-/tmp}/claude-statusline-$(id -u 2>/dev/null || echo 0)"
+    if [ ! -d "$tmp_dir" ]; then
+        mkdir -m 700 "$tmp_dir" 2>/dev/null || return 1
+    fi
+    [ -O "$tmp_dir" ] || return 1
+    tmp_file="$tmp_dir/cpu"
 
     read -r _ cpu_user cpu_nice cpu_system cpu_idle cpu_iowait cpu_irq cpu_softirq cpu_steal _ < /proc/stat
 
     cpu_total=$(( ${cpu_user:-0} + ${cpu_nice:-0} + ${cpu_system:-0} + ${cpu_idle:-0} + ${cpu_iowait:-0} + ${cpu_irq:-0} + ${cpu_softirq:-0} + ${cpu_steal:-0} ))
     cpu_used=$(( ${cpu_user:-0} + ${cpu_nice:-0} + ${cpu_system:-0} + ${cpu_irq:-0} + ${cpu_softirq:-0} + ${cpu_steal:-0} ))
 
-    if [ -f "$tmp_file" ] && read -r prev_used prev_total < "$tmp_file" 2>/dev/null; then
+    cpu_usage=0
+    if [ -f "$tmp_file" ] && read -r prev_used prev_total < "$tmp_file" 2>/dev/null \
+        && [[ "$prev_used" =~ ^[0-9]+$ ]] && [[ "$prev_total" =~ ^[0-9]+$ ]]; then
         cpu_used_diff=$((cpu_used - prev_used))
         cpu_total_diff=$((cpu_total - prev_total))
+        # Counters reset on reboot — don't render a negative percentage
+        [ "$cpu_used_diff" -lt 0 ] && cpu_used_diff=0
         cpu_usage=$(( cpu_total_diff > 0 ? (cpu_used_diff * 100) / cpu_total_diff : 0 ))
-    else
-        cpu_usage=0
     fi
 
     echo "$cpu_used $cpu_total" > "$tmp_file"
@@ -126,6 +135,7 @@ get_model_context_window() {
         *qwen3.8-max-preview*)      printf "1048576" ;; # 1M
         *qwen3.7-max*)              printf "1048576" ;; # 1M
         *qwen3.7-plus*)             printf "1048576" ;; # 1M
+        *qwen3.7-flash*)            printf "1048576" ;; # 1M
         *qwen3.6-plus*)             printf "1048576" ;; # 1M
         *qwen3.6-flash*)            printf "1048576" ;; # 1M
         # DeepSeek series
@@ -138,9 +148,7 @@ get_model_context_window() {
         *glm-5*)                    printf "204800"  ;; # 200k
         # Kimi series
         *k3-256k*)                  printf "262144" ;; # 256k
-        *k3*)                       printf "1048576" ;; # 1M
-        *kimi-k3*)                  printf "1048576" ;; # 1M
-        *k3[[]1m[]]*)               printf "1048576" ;; # 1M (k3[1m] variant)
+        *k3*)                       printf "1048576" ;; # 1M (also covers kimi-k3 and k3[1m])
         *kimi-k2.7-code-highspeed*) printf "262144" ;;  # 256k
         *kimi-k2.7-code*)           printf "262144" ;;  # 256k
         *kimi-k2.6*)                printf "262144" ;;  # 256k
@@ -152,6 +160,7 @@ get_model_context_window() {
         *minimax-m3*)               printf "1048576" ;; # 1M
         *minimax*)                  printf "204800"  ;; # 204.8k (M2 / M2.5 / M2.7)
         # OpenAI series
+        *gpt-5.6*)                  printf "1050000" ;; # 1.05M (Sol / Terra / Luna)
         *gpt-5.5*)                  printf "1048576" ;; # 1M
         *gpt-5*)                    printf "400000"  ;; # 400k (5 Pro / 5.1 / 5.3 / 5.4 Codex)
         *gpt-4.1*)                  printf "1048576" ;; # 1M
@@ -162,6 +171,7 @@ get_model_context_window() {
         *grok-4.1-fast*)            printf "2000000" ;; # 2M
         *grok-4.20*)                printf "2000000" ;; # 2M
         *grok-4.5*)                 printf "500000"  ;; # 500k
+        *grok-4.3*)                 printf "1048576" ;; # 1M
         *grok*)                     printf "256000"  ;; # 256k (Grok 4)
         # Claude: intentionally no entry — native Claude Code provides an accurate
         # context_window_size in JSON (200k standard / 1M beta); the 200k fallback
@@ -195,14 +205,16 @@ elif [ "$context_pct" -gt 100 ] 2>/dev/null; then
 fi
 
 # Format number
-# Binary units when the value is an exact multiple of 1024 (131072→128k,
-# 204800→200k, 262144→256k, 1048576→1M); decimal otherwise (400000→400k,
-# 500000→500k, 2000000→2M)
+# Binary units only when the value is a multiple of 1024 but NOT of 1000
+# (131072→128k, 204800→200k, 262144→256k, 1048576→1M). Values divisible by
+# 1000 are almost always decimal marketing numbers (128000→128k, 256000→256k,
+# 400000→400k, 2000000→2M) — the plain "% 1024 == 0" heuristic misrendered
+# those as 125.0k / 250k.
 format_number() {
     local num=$1
     if ! [[ "$num" =~ ^[0-9]+$ ]]; then num=0; fi
     local base=1000
-    if [ "$num" -gt 0 ] && [ $((num % 1024)) -eq 0 ]; then base=1024; fi
+    if [ "$num" -gt 0 ] && [ $((num % 1024)) -eq 0 ] && [ $((num % 1000)) -ne 0 ]; then base=1024; fi
     if [ "$num" -ge $((base * base)) ]; then
         local millions=$((num / (base * base) ))
         local fraction=$(((num % (base * base)) / (base * base / 10) ))
