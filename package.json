@@ -1,5 +1,5 @@
 {
-  "name": "cc-statusline",
+  "name": "@zlemon317/cc-statusline",
   "version": "1.0.0",
   "description": "Custom status line for Claude Code: model, context usage, session duration, CPU, git branch & changes",
   "main": "./bin/install.js",

@@ -34,14 +34,14 @@ ocean theme:
 ### Via npx (recommended)
 
 ```bash
-npx cc-statusline@latest
+npx @zlemon317/cc-statusline@latest
 ```
 
 ### Global install
 
 ```bash
 # 1. Install the package
-npm install -g cc-statusline
+npm install -g @zlemon317/cc-statusline
 
 # 2. Run the setup script
 cc-statusline
@@ -52,7 +52,7 @@ The installer copies the status line script to `~/.claude/statusline.sh` (backin
 ## Uninstall
 
 ```bash
-npx cc-statusline@latest --uninstall
+npx @zlemon317/cc-statusline@latest --uninstall
 ```
 
 Restores your previous status line from backup (or removes it) and cleans up `settings.json`.
@@ -144,13 +144,13 @@ Claude Code 自定义状态行工具，实时展示模型名称、上下文使�
 ### 安装
 
 ```bash
-npx cc-statusline@latest
+npx @zlemon317/cc-statusline@latest
 ```
 
 ### 卸载
 
 ```bash
-npx cc-statusline@latest --uninstall
+npx @zlemon317/cc-statusline@latest --uninstall
 ```
 
 ### 依赖

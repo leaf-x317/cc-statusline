@@ -49,7 +49,7 @@ Publishing is automated via GitHub Actions (`.github/workflows/publish.yml`):
 Install via npx:
 
 ```bash
-npx cc-statusline
+npx @zlemon317/cc-statusline
 ```
 
 ## Key Files
