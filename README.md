@@ -67,6 +67,8 @@ Restores your previous status line from backup (or removes it) and cleans up `se
 - `git` — branch and diff stats
 - `bash` — required on Windows (ships with [Git for Windows](https://git-scm.com/download/win)); preinstalled on macOS/Linux
 
+> **Windows note:** the installer locates `bash`, `jq`, and `git` via your `PATH`. Git for Windows' default setup only adds `Git\cmd` to `PATH`, which contains `git.exe` but **not** `bash.exe` — add `Git\usr\bin` to your `PATH` as well. After installing dependencies or editing `PATH`, open a **new** terminal window before running the installer (existing windows keep the old `PATH`).
+
 ## Themes
 
 Edit `~/.claude/statusline.sh` and change the `THEME` variable:
@@ -162,6 +164,8 @@ npx @zlemon317/cc-statusline@latest --uninstall
 - `jq` - JSON 处理工具（`apt install jq` / `yum install jq` / `brew install jq` / `winget install jqlang.jq`）
 - `git` - 版本控制工具
 - `bash` - 仅 Windows 需要（随 [Git for Windows](https://git-scm.com/download/win) 提供）；macOS/Linux 已预装
+
+> **Windows 提示：** 安装程序通过 `PATH` 查找 `bash`、`jq`、`git`。Git for Windows 默认安装只把 `Git\cmd` 加入 `PATH`（其中有 `git.exe` 但**没有** `bash.exe`），需手动将 `Git\usr\bin` 也加入 `PATH`。安装依赖或修改 `PATH` 后，请**重新打开终端窗口**再运行安装程序（已打开的窗口仍使用旧的 `PATH`）。
 
 ### 主题配置
 
