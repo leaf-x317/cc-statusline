@@ -19,6 +19,16 @@ Behavior notes for `bin/statusline.sh`:
 - Number formatting in `format_number()` uses binary units only when the value is a multiple of 1024 but not of 1000 (262144→256k; 256000→256k decimal).
 - CPU segment reads Linux `/proc/stat` and is hidden when unreadable (macOS). The cache lives in a per-user 700-mode dir under `${TMPDIR:-/tmp}`.
 
+### Model context-window mapping conventions
+
+The mapping lives in `get_model_context_window()` in `bin/statusline.sh` and is mirrored as the table in `README.md`:
+
+- **Substring globs, case-insensitive.** The model name is lowercased, then matched with globs, so `*qwen3.8-max*)` matches any name containing `qwen3.8-max` — `qwen3.8-max`, `qwen3.8-max-preview`, dated builds, etc. Prefer one broad pattern per family; do **not** add entries for variants the broad pattern already covers.
+- **Specific-before-broad only when the window differs.** Bash `case` is first-match-wins. If a variant maps to a *different* window than its family, list it above the broader pattern: `*k3-256k*)` (256k) before `*k3*)` (1M), `*gpt-5.6*)` / `*gpt-5.5*)` before `*gpt-5*)` (400k), `*kimi-k2.7-code-highspeed*)` before `*kimi-k2.7-code*)`.
+- **Raw token counts with a readable comment.** Values are raw tokens (`1048576`, `204800`) annotated with the display form (`# 1M`, `# 204.8k`).
+- **`*)` returns 0** (no nonzero catch-all — see the resolution-priority note above), and Claude gets no entry.
+- **Keep the README table in sync.** README rows group patterns by family (comma-separated representative names plus variant annotations like `(+ -highspeed variants)`, `(legacy)`), not one row per pattern. When a pattern is added, merged, or renamed, update the matching README row in the same change.
+
 No build step, no bundler, no transpilation. The npm package is published as-is.
 
 ## Dependencies

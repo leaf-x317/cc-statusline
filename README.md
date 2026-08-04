@@ -100,14 +100,14 @@ The status line automatically matches the context window size by model name — 
 
 | Model family | Context window |
 |---------|-----------|
-| qwen3.8-max-preview / qwen3.7-max / qwen3.7-plus / qwen3.7-flash / qwen3.6-plus / qwen3.6-flash | 1M |
+| qwen3.8-max / qwen3.7-max / qwen3.7-plus / qwen3.7-flash / qwen3.6-plus / qwen3.6-flash | 1M |
 | deepseek-v4-pro / deepseek-v4-flash | 1M |
 | deepseek-v3.2 | 128k |
 | glm-5.2 | 1M |
 | glm-5.1 / glm-5 | 200k |
 | kimi-k3 / k3 / k3[1m] | 1M |
 | k3-256k | 256k |
-| kimi-k2.7-code / kimi-k2.6 / kimi-k2.5 / kimi-for-coding (+ -highspeed variants) | 256k |
+| kimi-k2.7-code / kimi-k2.6 / kimi-k2.5 / kimi-for-coding | 256k |
 | kimi (legacy) | 128k |
 | minimax-m3 | 1M |
 | minimax-m2 / m2.5 / m2.7 | 204.8k |

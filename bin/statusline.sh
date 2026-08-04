@@ -132,7 +132,7 @@ get_model_context_window() {
 
     case "$model_lower" in
         # Qwen series
-        *qwen3.8-max-preview*)      printf "1048576" ;; # 1M
+        *qwen3.8-max*)              printf "1048576" ;; # 1M (also covers qwen3.8-max-preview)
         *qwen3.7-max*)              printf "1048576" ;; # 1M
         *qwen3.7-plus*)             printf "1048576" ;; # 1M
         *qwen3.7-flash*)            printf "1048576" ;; # 1M
@@ -144,17 +144,14 @@ get_model_context_window() {
         *deepseek-v3.2*)            printf "131072" ;; # 128k
         # GLM series
         *glm-5.2*)                  printf "1048576" ;; # 1M
-        *glm-5.1*)                  printf "204800"  ;; # 200k
-        *glm-5*)                    printf "204800"  ;; # 200k
+        *glm-5*)                    printf "204800"  ;; # 200k (also covers glm-5.1)
         # Kimi series
         *k3-256k*)                  printf "262144" ;; # 256k
         *k3*)                       printf "1048576" ;; # 1M (also covers kimi-k3 and k3[1m])
-        *kimi-k2.7-code-highspeed*) printf "262144" ;;  # 256k
-        *kimi-k2.7-code*)           printf "262144" ;;  # 256k
+        *kimi-k2.7-code*)           printf "262144" ;;  # 256k (also covers -highspeed)
         *kimi-k2.6*)                printf "262144" ;;  # 256k
         *kimi-k2.5*)                printf "262144" ;;  # 256k
-        *kimi-for-coding-highspeed*) printf "262144" ;; # 256k
-        *kimi-for-coding*)          printf "262144" ;;  # 256k
+        *kimi-for-coding*)          printf "262144" ;;  # 256k (also covers -highspeed)
         *kimi*)                     printf "131072" ;;  # 128k (legacy fallback)
         # MiniMax series
         *minimax-m3*)               printf "1048576" ;; # 1M
