@@ -105,7 +105,7 @@ The status line automatically matches the context window size by model name — 
 | deepseek-v3.2 | 128k |
 | glm-5.2 | 1M |
 | glm-5.1 / glm-5 | 200k |
-| kimi-k3 / k3 / k3[1m] | 1M |
+| kimi-k3 / k3 | 1M |
 | k3-256k | 256k |
 | kimi-k2.7-code / kimi-k2.6 / kimi-k2.5 / kimi-for-coding | 256k |
 | kimi (legacy) | 128k |
@@ -125,6 +125,8 @@ The status line automatically matches the context window size by model name — 
 | Unknown models | JSON-provided value, else 200k (default) |
 
 The mapping lives in the `get_model_context_window()` function in `bin/statusline.sh`. Model matching is case-insensitive. Priority: **name mapping > JSON-provided `context_window_size` > 200k default**. If your gateway uses different model names, just add a line to that function.
+
+`[1m]` is Claude Code's suffix for 1M-context-window models (e.g. `deepseek-v4-flash[1m]`) — it is not a separate model ID. A top-level override in `get_model_context_window()` treats any `[1m]`-suffixed name as 1M, so no per-model entries are needed for it.
 
 ## Releasing
 
@@ -195,6 +197,8 @@ THEME="ocean"    # 海洋主题（青色系）
 ### 模型上下文窗口映射
 
 状态行会按模型名称自动匹配上下文窗口大小（覆盖 128k / 200k / 256k / 400k / 500k / 1M / 2M，含 Qwen、DeepSeek、GLM、Kimi、MiniMax、GPT、Gemini、Grok 系列；Claude 直接使用 JSON 提供的准确值），映射规则位于 `bin/statusline.sh` 的 `get_model_context_window()` 函数中，模型匹配不区分大小写。优先级：**名称映射 > JSON 提供的 `context_window_size` > 200k 默认值**。如果你的网关使用不同的模型名，直接在该函数里加一行即可。
+
+另外，Claude Code 为 1M 上下文窗口的模型约定在模型 ID 后追加 `[1m]` 后缀（如 `deepseek-v4-flash[1m]`）。这并非独立模型 ID，`get_model_context_window()` 中的一条顶层覆盖规则会把任何带 `[1m]` 后缀的名字强制识别为 1M，因此无需为它单独列出模型条目。
 
 ### 许可证
 
