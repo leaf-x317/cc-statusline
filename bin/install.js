@@ -9,6 +9,7 @@ const CLAUDE_DIR = path.join(os.homedir(), '.claude');
 const SETTINGS_FILE = path.join(CLAUDE_DIR, 'settings.json');
 const STATUSLINE_DEST = path.join(CLAUDE_DIR, 'statusline.sh');
 const STATUSLINE_SRC = path.resolve(__dirname, 'statusline.sh');
+const STATUSLINE_CONFIG_BACKUP = path.join(CLAUDE_DIR, 'statusline.config.bak.json');
 
 const blue = '\x1b[38;2;0;153;255m';
 const green = '\x1b[38;2;0;175;80m';
@@ -94,7 +95,29 @@ function uninstall() {
 
   if (fs.existsSync(SETTINGS_FILE)) {
     const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
-    if (settings.statusLine) {
+
+    // Restore the pre-install statusLine config if we saved one, otherwise
+    // just remove ours.
+    if (fs.existsSync(STATUSLINE_CONFIG_BACKUP)) {
+      try {
+        const backupConfig = JSON.parse(fs.readFileSync(STATUSLINE_CONFIG_BACKUP, 'utf-8'));
+        if (backupConfig && backupConfig.statusLine) {
+          settings.statusLine = backupConfig.statusLine;
+          fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2) + '\n');
+          success('已恢复之前的 statusLine 配置');
+        } else {
+          delete settings.statusLine;
+          fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2) + '\n');
+          success(`已从 ${dim}settings.json${reset} 移除 statusLine 配置`);
+        }
+        fs.unlinkSync(STATUSLINE_CONFIG_BACKUP);
+      } catch {
+        // Corrupt backup: fall back to removing our entry rather than half-restoring
+        delete settings.statusLine;
+        fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2) + '\n');
+        success(`备份损坏，已从 ${dim}settings.json${reset} 移除 statusLine 配置`);
+      }
+    } else if (settings.statusLine) {
       delete settings.statusLine;
       fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2) + '\n');
       success(`已从 ${dim}settings.json${reset} 移除 statusLine 配置`);
@@ -175,13 +198,23 @@ function run() {
     command: `bash "${STATUSLINE_DEST}"`,
   };
 
-  if (
+  const isOurs =
     settings.statusLine &&
     settings.statusLine.type === 'command' &&
-    settings.statusLine.command === statusLineConfig.command
-  ) {
+    settings.statusLine.command === statusLineConfig.command;
+
+  if (isOurs) {
     success('配置已存在');
   } else {
+    // Preserve any pre-existing statusLine config so --uninstall can restore it
+    // (the .sh backup only covers the script file, not the settings entry).
+    if (settings.statusLine && !fs.existsSync(STATUSLINE_CONFIG_BACKUP)) {
+      fs.writeFileSync(
+        STATUSLINE_CONFIG_BACKUP,
+        JSON.stringify({ statusLine: settings.statusLine }, null, 2) + '\n'
+      );
+      warn(`已备份原 statusLine 配置到 ${dim}${path.basename(STATUSLINE_CONFIG_BACKUP)}${reset}`);
+    }
     settings.statusLine = statusLineConfig;
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2) + '\n');
     success(`已更新 ${dim}settings.json${reset} 中的 statusLine 配置`);

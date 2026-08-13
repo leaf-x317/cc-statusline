@@ -89,8 +89,9 @@ context_pct=0
 get_cpu_usage() {
     local tmp_dir tmp_file cpu_user cpu_nice cpu_system cpu_idle cpu_iowait cpu_irq cpu_softirq cpu_steal
     local cpu_total cpu_used cpu_usage prev_used prev_total cpu_used_diff cpu_total_diff
+    local have_lock=0
 
-    # /proc/stat is Linux-only; bail out on macOS so the caller can hide the segment
+    # /proc/stat is Linux-only; bail out on macOS/native Windows so the caller can hide the segment
     [ -r /proc/stat ] || return 1
 
     # Private per-user cache dir (mode 700, ownership-checked) — a predictable
@@ -101,6 +102,17 @@ get_cpu_usage() {
     fi
     [ -O "$tmp_dir" ] || return 1
     tmp_file="$tmp_dir/cpu"
+
+    # Serialize the read-delta-write across concurrent sessions so one can't
+    # clobber another's counters mid-update. Best-effort: fall back to lock-free
+    # when flock is unavailable.
+    if command -v flock >/dev/null 2>&1 && exec 9>>"$tmp_file" 2>/dev/null; then
+        if flock -w 1 9 2>/dev/null; then
+            have_lock=1
+        else
+            exec 9>&-
+        fi
+    fi
 
     read -r _ cpu_user cpu_nice cpu_system cpu_idle cpu_iowait cpu_irq cpu_softirq cpu_steal _ < /proc/stat
 
@@ -118,6 +130,8 @@ get_cpu_usage() {
     fi
 
     echo "$cpu_used $cpu_total" > "$tmp_file"
+
+    [ "$have_lock" -eq 1 ] && exec 9>&-
     printf "%d" "$cpu_usage"
 }
 
@@ -218,11 +232,14 @@ format_number() {
     if [ "$num" -gt 0 ] && [ $((num % 1024)) -eq 0 ] && [ $((num % 1000)) -ne 0 ]; then base=1024; fi
     if [ "$num" -ge $((base * base)) ]; then
         local millions=$((num / (base * base) ))
-        local fraction=$(((num % (base * base)) / (base * base / 10) ))
+        # Two decimal places so 1.05M (1050000) renders as "1.05M", not "1M".
+        local fraction=$(((num % (base * base)) / (base * base / 100) ))
         if [ "$fraction" -eq 0 ]; then
             printf "%dM" "$millions"
+        elif [ $((fraction % 10)) -eq 0 ]; then
+            printf "%d.%dM" "$millions" "$((fraction / 10))"
         else
-            printf "%d.%dM" "$millions" "$fraction"
+            printf "%d.%02dM" "$millions" "$fraction"
         fi
     elif [ "$num" -ge "$base" ]; then
         local thousands=$((num / base))
@@ -283,12 +300,27 @@ git_branch=""
 git_added=0
 git_removed=0
 repo_name=""
-if [ -n "$cwd" ] && git -C "$cwd" rev-parse --git-dir > /dev/null 2>&1; then
+
+# Run git through `timeout` so a hung invocation (huge repo, network fs, or a
+# stalled credential prompt) can't freeze the status line.
+_git() {
+    if command -v timeout >/dev/null 2>&1; then
+        timeout 2 git "$@" 2>/dev/null
+    else
+        git "$@" 2>/dev/null
+    fi
+}
+
+if [ -n "$cwd" ]; then
+    repo_root=$(_git -C "$cwd" rev-parse --show-toplevel)
+fi
+
+if [ -n "$cwd" ] && [ -n "$repo_root" ]; then
     # Repo name from git remote URL, fallback to git root directory name
-    repo_name=$(basename "$(git -C "$cwd" remote get-url origin 2>/dev/null)" .git 2>/dev/null)
-    [ -z "$repo_name" ] && repo_name=$(basename "$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null)
-    # Branch name
-    git_branch=$(git -C "$cwd" symbolic-ref --short HEAD 2>/dev/null || git -C "$cwd" rev-parse --short HEAD 2>/dev/null)
+    repo_name=$(basename "$(_git -C "$cwd" remote get-url origin)" .git 2>/dev/null)
+    [ -z "$repo_name" ] && repo_name=$(basename "$repo_root")
+    # Branch name (falls back to short commit hash in detached HEAD)
+    git_branch=$(_git -C "$cwd" symbolic-ref --short HEAD || _git -C "$cwd" rev-parse --short HEAD)
     # Added/removed lines from git diff --numstat (tracked files)
     while read -r added removed file; do
         [ "$added" = "-" ] && added=0
@@ -298,18 +330,20 @@ if [ -n "$cwd" ] && git -C "$cwd" rev-parse --git-dir > /dev/null 2>&1; then
         git_added=$((git_added + added))
         git_removed=$((git_removed + removed))
     done <<EOF
-$(git -C "$cwd" diff --numstat HEAD 2>/dev/null)
+$(_git -C "$cwd" diff --numstat HEAD)
 EOF
-    # Add untracked files (new files)
+    # Add untracked files (new files) — one wc over all of them, not one per file
+    untracked_files=()
     while IFS= read -r file; do
-        [ ! -f "$cwd/$file" ] && continue
-        # Count lines in new file
-        lines=$(wc -l < "$cwd/$file" 2>/dev/null || echo 0)
-        git_added=$((git_added + lines))
+        [ -f "$cwd/$file" ] && untracked_files+=("$cwd/$file")
     done <<EOF
-$(git -C "$cwd" ls-files --others --exclude-standard 2>/dev/null)
+$(_git -C "$cwd" ls-files --others --exclude-standard)
 EOF
-    unset -v added removed file lines
+    if [ "${#untracked_files[@]}" -gt 0 ]; then
+        new_lines=$(wc -l "${untracked_files[@]}" 2>/dev/null | tail -n1 | awk '{print $1}')
+        [[ "$new_lines" =~ ^[0-9]+$ ]] && git_added=$((git_added + new_lines))
+    fi
+    unset -v added removed file untracked_files new_lines repo_root
 fi
 
 
@@ -330,23 +364,19 @@ if [ -n "$effort_thinking" ]; then
     printf " %b" "$effort_thinking"
 fi
 
-need_sep=1
 if [ -n "$cwd" ]; then
-    [ "$need_sep" -eq 1 ] && printf " \033[%sm|\033[0m" "$COLOR_GRAY"
+    printf " \033[%sm|\033[0m" "$COLOR_GRAY"
     printf " \033[%sm◼\033[0m \033[37m%s\033[0m" "$COLOR_GRAY" "$cwd"
-    need_sep=1
 fi
 
 if [ -n "$repo_name" ]; then
-    [ "$need_sep" -eq 1 ] && printf " \033[%sm|\033[0m" "$COLOR_GRAY"
+    printf " \033[%sm|\033[0m" "$COLOR_GRAY"
     printf " \033[%sm⎔\033[0m \033[37m%s\033[0m" "$COLOR_GRAY" "$repo_name"
-    need_sep=1
 fi
 
 if [ -n "$git_branch" ]; then
-    [ "$need_sep" -eq 1 ] && printf " \033[%sm|\033[0m" "$COLOR_GRAY"
+    printf " \033[%sm|\033[0m" "$COLOR_GRAY"
     printf " \033[%sm⌥\033[0m \033[37m%s\033[0m" "$COLOR_GRAY" "$git_branch"
-    need_sep=1
 fi
 printf "\n"
 
@@ -361,7 +391,7 @@ fi
 printf " \033[%sm|\033[0m \033[%sm◷\033[0m Duration: \033[%sm%s\033[0m" \
     "$COLOR_GRAY" "$COLOR_GRAY" "$COLOR_DURATION" "$(format_duration "$session_duration")"
 
-# CPU utilization (hidden on platforms without /proc/stat, e.g. macOS)
+# CPU utilization (hidden on platforms without /proc/stat, e.g. macOS, native Windows)
 if cpu_pct=$(get_cpu_usage); then
     printf " \033[%sm|\033[0m \033[%sm▣\033[0m CPU: \033[%sm%d%%\033[0m" \
         "$COLOR_GRAY" "$COLOR_GRAY" "$COLOR_CPU" "$cpu_pct"

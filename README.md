@@ -27,7 +27,7 @@ ocean theme:
 - Context usage percentage with progress bar
 - Automatic context-window mapping by model name (128k–2M; Qwen / DeepSeek / GLM / Kimi / MiniMax / GPT / Gemini / Grok; Claude uses the JSON-provided value)
 - Session duration
-- CPU utilization (Linux/Windows; hidden on macOS, which lacks `/proc/stat`)
+- CPU utilization (Linux, including WSL; hidden on macOS and native Windows, which lack `/proc/stat`)
 - Current working directory and repository name
 - Git branch
 - Code change stats (added / removed lines)

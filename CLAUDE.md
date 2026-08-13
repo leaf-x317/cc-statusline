@@ -17,7 +17,7 @@ Behavior notes for `bin/statusline.sh`:
 
 - Context window size resolution priority: **model-name mapping in `get_model_context_window()` > JSON-provided `context_window_size` > 200k default**. The mapping returns 0 for unknown models — do not give it a nonzero catch-all, or the JSON branch becomes dead code. Claude models intentionally have no mapping entry (native Claude Code reports the accurate value; 200k fallback matches the standard window).
 - Number formatting in `format_number()` uses binary units only when the value is a multiple of 1024 but not of 1000 (262144→256k; 256000→256k decimal).
-- CPU segment reads Linux `/proc/stat` and is hidden when unreadable (macOS). The cache lives in a per-user 700-mode dir under `${TMPDIR:-/tmp}`.
+- CPU segment reads Linux `/proc/stat` and is hidden when unreadable (macOS, native Windows). The cache lives in a per-user 700-mode dir under `${TMPDIR:-/tmp}`.
 
 ### Model context-window mapping conventions
 
