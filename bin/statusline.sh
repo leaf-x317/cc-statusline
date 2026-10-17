@@ -59,11 +59,15 @@ set_theme_colors
 # Read JSON input
 input=$(cat)
 
-# Extract all fields in one jq call
+# Extract all fields in one jq call. Fields are separated by the ASCII unit
+# separator, not a tab: tab is IFS whitespace, so `read` collapses empty
+# fields and shifts every value after them. @tsv also backslash-escapes
+# Windows paths, which used to render with doubled separators.
 OLDIFS="$IFS"
-IFS=$'\t' read -r model effort thinking used_percent context_window_size context_total_input context_total_output session_duration cwd < <(
+IFS=$'\x1f' read -r model_id model effort thinking used_percent context_window_size context_total_input context_total_output session_duration cwd < <(
     printf '%s' "$input" | jq -r '[
-        (.model.display_name // .model.id // "model"),
+        (.model.id // ""),
+        (if (.model.display_name // "") == "" then (.model.id // "model") else .model.display_name end),
         (.effort.level // "-"),
         (.thinking.enabled // false),
         (.context_window.used_percentage // .context.used_percent // .usage.context_used_percent // 0),
@@ -72,10 +76,10 @@ IFS=$'\t' read -r model effort thinking used_percent context_window_size context
         (.context_window.total_output_tokens // 0),
         (.cost.total_duration_ms // 0),
         (.workspace.current_dir // .cwd // "")
-    ] | @tsv' | tr -d '\r'
+    ] | join("\u001f")' | tr -d '\r'
 )
 IFS="$OLDIFS"
-# Restore placeholder for empty effort (Bash read swallows empty TSV fields)
+# Restore placeholder for empty effort
 [ "$effort" = "-" ] && effort=""
 [[ "$context_total_input" =~ ^[0-9]+$ ]] || context_total_input=0
 [[ "$context_total_output" =~ ^[0-9]+$ ]] || context_total_output=0
@@ -83,6 +87,8 @@ context_used=$((context_total_input + context_total_output))
 
 # context_pct is recalculated below from actual usage vs actual window size
 context_pct=0
+# Set when the hook omits token totals and only the JSON percentage is available
+context_pct_from_json=0
 
 # CPU utilization measurement using /proc/stat with temp file caching
 # Uses deltas between successive calls to compute near-instantaneous CPU usage
@@ -136,81 +142,29 @@ get_cpu_usage() {
 }
 
 
-# Map model name to its context window size (in tokens)
-# Returns 0 for unknown models so the caller can fall back to the
-# JSON-provided value, then to a 200k default
-# Priority: model name map > JSON-provided value > 200k default
-get_model_context_window() {
-    local model_lower
-    model_lower=$(echo "$1" | tr '[:upper:]' '[:lower:]')
-
-    case "$model_lower" in
-        # Claude Code convention: the "[1m]" suffix marks a 1M-context model
-        # (e.g. deepseek-v4-flash[1m]). Match it before family patterns so a
-        # [1m]-suffixed base name that maps elsewhere still resolves to 1M.
-        *\[1m\]*)                   printf "1048576" ;; # 1M ([1m] suffix)
-        # Qwen series
-        *qwen3.8-max*)              printf "1048576" ;; # 1M (also covers qwen3.8-max-preview)
-        *qwen3.7-max*)              printf "1048576" ;; # 1M
-        *qwen3.7-plus*)             printf "1048576" ;; # 1M
-        *qwen3.7-flash*)            printf "1048576" ;; # 1M
-        *qwen3.6-plus*)             printf "1048576" ;; # 1M
-        *qwen3.6-flash*)            printf "1048576" ;; # 1M
-        # DeepSeek series
-        *deepseek-v4-pro*)          printf "1048576" ;; # 1M
-        *deepseek-v4-flash*)        printf "1048576" ;; # 1M
-        *deepseek-v3.2*)            printf "131072" ;; # 128k
-        # GLM series
-        *glm-5.2*)                  printf "1048576" ;; # 1M
-        *glm-5*)                    printf "204800"  ;; # 200k (also covers glm-5.1)
-        # Kimi series
-        *k3-256k*)                  printf "262144" ;; # 256k
-        *k3*)                       printf "1048576" ;; # 1M (covers kimi-k3 and k3)
-        *kimi-k2.7-code*)           printf "262144" ;;  # 256k (also covers -highspeed)
-        *kimi-k2.6*)                printf "262144" ;;  # 256k
-        *kimi-k2.5*)                printf "262144" ;;  # 256k
-        *kimi-for-coding*)          printf "262144" ;;  # 256k (also covers -highspeed)
-        *kimi*)                     printf "131072" ;;  # 128k (legacy fallback)
-        # MiniMax series
-        *minimax-m3*)               printf "1048576" ;; # 1M
-        *minimax*)                  printf "204800"  ;; # 204.8k (M2 / M2.5 / M2.7)
-        # OpenAI series
-        *gpt-5.6*)                  printf "1050000" ;; # 1.05M (Sol / Terra / Luna)
-        *gpt-5.5*)                  printf "1048576" ;; # 1M
-        *gpt-5*)                    printf "400000"  ;; # 400k (5 Pro / 5.1 / 5.3 / 5.4 Codex)
-        *gpt-4.1*)                  printf "1048576" ;; # 1M
-        *gpt-4*)                    printf "131072"  ;; # 128k (4o / 4-turbo)
-        # Google series
-        *gemini*)                   printf "1048576" ;; # 1M (Gemini 3 / 3.1 family)
-        # xAI series
-        *grok-4.1-fast*)            printf "2000000" ;; # 2M
-        *grok-4.20*)                printf "2000000" ;; # 2M
-        *grok-4.5*)                 printf "500000"  ;; # 500k
-        *grok-4.3*)                 printf "1048576" ;; # 1M
-        *grok*)                     printf "256000"  ;; # 256k (Grok 4)
-        # Claude: intentionally no entry — native Claude Code provides an accurate
-        # context_window_size in JSON (200k standard / 1M beta); the 200k fallback
-        # below covers gateway usage without a JSON value.
-        # No match: return 0 so the caller falls back to the JSON-provided value,
-        # then to the 200k default
-        *)                          printf "0" ;;
-    esac
-}
-
-# Determine context window size: model-name mapping > JSON value > 200k default
-model_window=$(get_model_context_window "$model")
-if [ "$model_window" -gt 0 ] 2>/dev/null; then
-    context_window_size="$model_window"
-elif [ "$context_window_size" -gt 0 ] 2>/dev/null; then
-    : # use JSON-provided value as-is
+# Determine context window size. Claude Code derives the window itself from
+# the model ID ([1m] suffix => 1M, otherwise 200k) and reports it as
+# context_window_size, so the JSON value is authoritative. Only when the hook
+# omits it do we apply the suffix rule ourselves, then the 200k default.
+if [ "$context_window_size" -gt 0 ] 2>/dev/null; then
+    : # use the JSON-provided value as-is
 else
-    context_window_size=200000  # default 200k
+    model_lower=$(printf '%s %s' "$model_id" "$model" | tr '[:upper:]' '[:lower:]')
+    case "$model_lower" in
+        *\[1m\]*) context_window_size=1000000 ;; # 1M
+        *)        context_window_size=200000  ;; # default 200k
+    esac
 fi
 
-# Recalculate context percentage from actual usage vs actual window size
-# This fixes the bug where JSON's used_percent was calculated with a wrong denominator
+# Recalculate context percentage from actual usage vs actual window size.
+# This fixes the bug where JSON's used_percent was calculated with a wrong
+# denominator. When the hook omits token totals, fall back to the JSON
+# percentage rather than showing 0%.
 if [ "$context_window_size" -gt 0 ] 2>/dev/null && [ "$context_used" -gt 0 ] 2>/dev/null; then
     context_pct=$(( (context_used * 100) / context_window_size ))
+elif [[ "$used_percent" =~ ^[0-9]+([.][0-9]+)?$ ]] && [ "${used_percent%%.*}" -gt 0 ] 2>/dev/null; then
+    context_pct=${used_percent%%.*}
+    context_pct_from_json=1
 fi
 [[ "$context_pct" =~ ^[0-9]+$ ]] || context_pct=0
 if [ "$context_pct" -lt 0 ] 2>/dev/null; then
@@ -384,7 +338,9 @@ printf "\n"
 printf "\033[%sm◔\033[0m Context: \033[%sm%s\033[0m \033[%sm%d%%\033[0m" "$COLOR_GRAY" "$context_color" "$bar" "$context_color" "$context_pct"
 
 
-if [ "$context_window_size" -gt 0 ] 2>/dev/null; then
+# Token counts are only meaningful when they came from the hook; when the
+# percentage is JSON-only they are 0 and would mislead.
+if [ "$context_window_size" -gt 0 ] 2>/dev/null && [ "$context_pct_from_json" -eq 0 ]; then
     printf " \033[%sm(%s/%s)\033[0m" "$COLOR_GRAY" "$(format_number "$context_used")" "$(format_number "$context_window_size")"
 fi
 

@@ -25,7 +25,7 @@ ocean theme:
 - Current model name
 - Model effort level and thinking mode status
 - Context usage percentage with progress bar
-- Automatic context-window mapping by model name (128k–2M; Qwen / DeepSeek / GLM / Kimi / MiniMax / GPT / Gemini / Grok; Claude uses the JSON-provided value)
+- Context usage measured against the window Claude Code actually uses (1M for `[1m]`-suffixed model IDs, 200k otherwise)
 - Session duration
 - CPU utilization (Linux, including WSL; hidden on macOS and native Windows, which lack `/proc/stat`)
 - Current working directory and repository name
@@ -91,42 +91,14 @@ Or set the `CC_STATUSLINE_THEME` environment variable — it survives reinstalls
 
 ```
 ✦ kimi-k3 (high, thinking) | ◼ /workspace | ⎔ cc-statusline | ⌥ main
-◔ Context: ████████░░ 82% (165k/1M) | ◷ Duration: 5m32s | ▣ CPU: 23% | Δ +128 -45
+◔ Context: ████████░░ 82% (165k/200k) | ◷ Duration: 5m32s | ▣ CPU: 23% | Δ +128 -45
 ```
 
-## Model context window mapping
+## Context window
 
-The status line automatically matches the context window size by model name — no manual configuration needed:
+Claude Code determines the context window itself and reports it in the status line JSON as `context_window_size`: models whose ID carries the `[1m]` suffix get 1M tokens, everything else defaults to 200k. The status line uses that value as-is, so its percentage always matches the window Claude Code actually compacts against. There is no model-name mapping table to maintain.
 
-| Model family | Context window |
-|---------|-----------|
-| qwen3.8-max / qwen3.7-max / qwen3.7-plus / qwen3.7-flash / qwen3.6-plus / qwen3.6-flash | 1M |
-| deepseek-v4-pro / deepseek-v4-flash | 1M |
-| deepseek-v3.2 | 128k |
-| glm-5.2 | 1M |
-| glm-5.1 / glm-5 | 200k |
-| kimi-k3 / k3 | 1M |
-| k3-256k | 256k |
-| kimi-k2.7-code / kimi-k2.6 / kimi-k2.5 / kimi-for-coding | 256k |
-| kimi (legacy) | 128k |
-| minimax-m3 | 1M |
-| minimax-m2 / m2.5 / m2.7 | 204.8k |
-| gpt-5.6 (sol / terra / luna) | 1.05M |
-| gpt-5.5 | 1M |
-| gpt-5 pro / 5.1 / 5.3 / 5.4 (codex) | 400k |
-| gpt-4.1 | 1M |
-| gpt-4o / gpt-4-turbo | 128k |
-| gemini 3 / 3.1 (pro / flash) | 1M |
-| grok-4.1-fast / grok-4.20 | 2M |
-| grok-4.5 | 500k |
-| grok-4.3 | 1M |
-| grok-4 | 256k |
-| claude (any) | JSON-provided value (200k standard / 1M beta) |
-| Unknown models | JSON-provided value, else 200k (default) |
-
-The mapping lives in the `get_model_context_window()` function in `bin/statusline.sh`. Model matching is case-insensitive. Priority: **name mapping > JSON-provided `context_window_size` > 200k default**. If your gateway uses different model names, just add a line to that function.
-
-`[1m]` is Claude Code's suffix for 1M-context-window models (e.g. `deepseek-v4-flash[1m]`) — it is not a separate model ID. A top-level override in `get_model_context_window()` treats any `[1m]`-suffixed name as 1M, so no per-model entries are needed for it.
+`[1m]` is a suffix Claude Code appends to the model ID for 1M-context models (e.g. `deepseek-v4-flash[1m]`) — it is not a separate model ID. If `context_window_size` is missing, the script applies the same rule as a fallback: `[1m]` suffix → 1M, otherwise → 200k.
 
 ## Releasing
 
@@ -191,14 +163,14 @@ THEME="ocean"    # 海洋主题（青色系）
 
 ```
 ✦ kimi-k3 (high, thinking) | ◼ /workspace | ⎔ cc-statusline | ⌥ main
-◔ Context: ████████░░ 82% (165k/1M) | ◷ Duration: 5m32s | ▣ CPU: 23% | Δ +128 -45
+◔ Context: ████████░░ 82% (165k/200k) | ◷ Duration: 5m32s | ▣ CPU: 23% | Δ +128 -45
 ```
 
-### 模型上下文窗口映射
+### 上下文窗口
 
-状态行会按模型名称自动匹配上下文窗口大小（覆盖 128k / 200k / 256k / 400k / 500k / 1M / 2M，含 Qwen、DeepSeek、GLM、Kimi、MiniMax、GPT、Gemini、Grok 系列；Claude 直接使用 JSON 提供的准确值），映射规则位于 `bin/statusline.sh` 的 `get_model_context_window()` 函数中，模型匹配不区分大小写。优先级：**名称映射 > JSON 提供的 `context_window_size` > 200k 默认值**。如果你的网关使用不同的模型名，直接在该函数里加一行即可。
+Claude Code 会自行判定上下文窗口，并通过状态行 JSON 的 `context_window_size` 上报：模型 ID 带 `[1m]` 后缀（如 `deepseek-v4-flash[1m]`）时为 1M，其余默认 200k。状态行直接使用该值，因此显示的百分比与 Claude Code 实际压缩所依据的窗口一致，无需维护模型名映射表。
 
-另外，Claude Code 为 1M 上下文窗口的模型约定在模型 ID 后追加 `[1m]` 后缀（如 `deepseek-v4-flash[1m]`）。这并非独立模型 ID，`get_model_context_window()` 中的一条顶层覆盖规则会把任何带 `[1m]` 后缀的名字强制识别为 1M，因此无需为它单独列出模型条目。
+若 JSON 未提供 `context_window_size`，脚本按同样的规则兜底：带 `[1m]` 后缀 → 1M，否则 → 200k。
 
 ### 许可证
 

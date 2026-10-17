@@ -15,20 +15,10 @@ The project consists of two components:
 
 Behavior notes for `bin/statusline.sh`:
 
-- Context window size resolution priority: **model-name mapping in `get_model_context_window()` > JSON-provided `context_window_size` > 200k default**. The mapping returns 0 for unknown models — do not give it a nonzero catch-all, or the JSON branch becomes dead code. Claude models intentionally have no mapping entry (native Claude Code reports the accurate value; 200k fallback matches the standard window).
+- Context window size resolution priority: **JSON-provided `context_window_size` > `[1m]` suffix fallback > 200k default**. Claude Code derives the window itself from the model ID (1M when it carries the `[1m]` suffix, 200k otherwise) and reports it in the hook JSON, so the script trusts that value instead of maintaining a model-name mapping. The suffix fallback only applies when `context_window_size` is missing or 0.
+- Hook JSON fields are parsed as a single `\x1f`-separated line, not `@tsv`/tab IFS: tab is IFS whitespace, so bash `read` collapses empty fields and shifts later values; `@tsv` also backslash-escapes Windows paths.
 - Number formatting in `format_number()` uses binary units only when the value is a multiple of 1024 but not of 1000 (262144→256k; 256000→256k decimal).
 - CPU segment reads Linux `/proc/stat` and is hidden when unreadable (macOS, native Windows). The cache lives in a per-user 700-mode dir under `${TMPDIR:-/tmp}`.
-
-### Model context-window mapping conventions
-
-The mapping lives in `get_model_context_window()` in `bin/statusline.sh` and is mirrored as the table in `README.md`:
-
-- **Substring globs, case-insensitive.** The model name is lowercased, then matched with globs, so `*qwen3.8-max*)` matches any name containing `qwen3.8-max` — `qwen3.8-max`, `qwen3.8-max-preview`, dated builds, etc. Prefer one broad pattern per family; do **not** add entries for variants the broad pattern already covers.
-- **Specific-before-broad only when the window differs.** Bash `case` is first-match-wins. If a variant maps to a *different* window than its family, list it above the broader pattern: `*k3-256k*)` (256k) before `*k3*)` (1M), `*gpt-5.6*)` / `*gpt-5.5*)` before `*gpt-5*)` (400k), `*kimi-k2.7-code-highspeed*)` before `*kimi-k2.7-code*)`.
-- **`[1m]` suffix override.** Claude Code appends `[1m]` to model IDs for 1M-context models (e.g. `deepseek-v4-flash[1m]`). The `*\[1m\]*)` pattern sits at the top of the case and forces any `[1m]`-suffixed name to 1M — so a base name that maps to a smaller window still reads as 1M when suffixed (e.g. `glm-5.1[1m]`). It is generic, not a per-family entry, so it has no README table row.
-- **Raw token counts with a readable comment.** Values are raw tokens (`1048576`, `204800`) annotated with the display form (`# 1M`, `# 204.8k`).
-- **`*)` returns 0** (no nonzero catch-all — see the resolution-priority note above), and Claude gets no entry.
-- **Keep the README table in sync.** README rows group patterns by family (comma-separated representative names plus variant annotations like `(+ -highspeed variants)`, `(legacy)`), not one row per pattern. When a pattern is added, merged, or renamed, update the matching README row in the same change.
 
 No build step, no bundler, no transpilation. The npm package is published as-is.
 
