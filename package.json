@@ -1,5 +1,5 @@
 {
-  "name": "@zlemon317/cc-statusline",
+  "name": "@leaf-x3/cc-statusline",
   "version": "1.0.0",
   "description": "Custom status line for Claude Code: model, context usage, session duration, CPU, git branch & changes",
   "main": "./bin/install.js",
@@ -16,12 +16,12 @@
     "statusline",
     "cli"
   ],
-  "author": "zlemon317",
+  "author": "leaf-x3",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zlemon317/cc-statusline.git"
+    "url": "git+https://github.com/leaf-x3/cc-statusline.git"
   },
-  "homepage": "https://github.com/zlemon317/cc-statusline#readme",
-  "bugs": "https://github.com/zlemon317/cc-statusline/issues"
+  "homepage": "https://github.com/leaf-x3/cc-statusline#readme",
+  "bugs": "https://github.com/leaf-x3/cc-statusline/issues"
 }
