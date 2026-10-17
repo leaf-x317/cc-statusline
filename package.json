@@ -1,6 +1,6 @@
 {
   "name": "@leaf-x317/cc-statusline",
-  "version": "1.0.1",
+  "version": "1.0.6",
   "description": "Custom status line for Claude Code: model, context usage, session duration, CPU, git branch & changes",
   "main": "./bin/install.js",
   "files": [
