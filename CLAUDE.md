@@ -43,14 +43,14 @@ Publishing is automated via GitHub Actions (`.github/workflows/publish.yml`):
 1. Create and push a git tag:
    ```bash
    git tag v1.0.0
-   git push origin v1.0.0
+   git push github v1.0.0
    ```
-2. The workflow updates the `package.json` version from the tag and publishes to the public npm registry (requires an `NPM_TOKEN` repository secret).
+2. The workflow updates the `package.json` version from the tag and publishes to the public npm registry via OIDC Trusted Publishing (no NPM_TOKEN secret; requires the package to be configured as a trusted publisher for this repo on npmjs.com).
 
 Install via npx:
 
 ```bash
-npx @zlemon317/cc-statusline
+npx @leaf-x317/cc-statusline
 ```
 
 ## Key Files
